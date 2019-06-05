@@ -1,32 +1,32 @@
 ---
-title: "Econtwitter"
+title: "Analyis of the #econtwitter hashtag"
 author: "Jeffrey Naecker"
-date: "5/19/2019"
 output: html_document
 ---
 
-```{r setup, include=F, echo = F, message = F}
-knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
-```
+```{r setup, message = F, include = F}
+knitr::opts_chunk$set(message = FALSE)
 
-
-```{r packages}
 library(rtweet)
 library(ggplot2)
 library(dplyr)
 library(ggrepel)
 library(knitr)
 library(kableExtra)
+library(stargazer)
 
 theme_set(theme_minimal())
 ```
 
-```{r data}
+I decided to try out the `rtweet` package to access Twitter data easily, and also the `ggrepel` packages to spice up my graphics.  And what better use than a quick analysis of `#econtwitter` itself!
+
+To start, let's download tweets with the `#econtwitter` hashtag.  Let's get a sense of the volume of tweets, by looking at the number posted under this hashtag every day.
+It looks like we can only get data going back about one week.
+
+```{r data, cache=TRUE}
 tweets <- search_tweets("#econtwitter", n = 1000, include_rts = FALSE)
 users <- users_data(tweets)
 ```
-
-Let's look at the number of tweets tagged with #econtwitter each day.
 
 ```{r}
 tweets %>%
@@ -34,7 +34,7 @@ tweets %>%
   labs(title = "Tweets tagged with #econtwitter per day", x = "Date", y = "Number of tweets")
 ```
 
-Who are the most prolific tweeters, as measured by number of tweets in the data set?  Let's also look at their total and average retweets and favorites.
+Who are the most prolific tweeters?  Let's look at the users with the most tweets in the data set.  Let's also check out their total and average retweets and favorites.
 
 ```{r}
 users <- 
@@ -42,63 +42,76 @@ users <-
   group_by(screen_name) %>%
   summarize(
     n_tweets         = n(),
-    total_likes = sum(favorite_count),
-    total_retweets = sum(retweet_count),
-    retweet_average  = mean(retweet_count),
-    favorite_average = mean(favorite_count)
+    favorite_total   = sum(favorite_count),
+    retweet_total    = sum(retweet_count),
+    favorite_average = mean(favorite_count),
+    retweet_average  = mean(retweet_count)
   ) %>%
   left_join(unique(users))
 
 users %>%
-  select(screen_name, n_tweets, total_likes, total_retweets, retweet_average, favorite_average, followers_count) %>%
+  select(screen_name, n_tweets, favorite_total, retweet_total, retweet_average, favorite_average, followers_count) %>%
   arrange(desc(n_tweets)) %>%
   head(10) %>%
   kable() %>%
   kable_styling("hover", full_width = F)
 ```
 
-Let's look at *average* tweet popularity by user, using retweets and favorites as the two key metrics.
+We can see that there is quite a lot of variation in the attention that the average tweet gets for different users. Let's plot average retweets against average likes, where each observation is a user.
 
 ```{r}
 users %>%
-  mutate(label = if_else(favorite_average >= 60 | retweet_average >= 15, screen_name, "")) %>%
+  mutate(label = if_else(favorite_average >= 75 | retweet_average >= 15, screen_name, "")) %>%
   ggplot(aes(x = favorite_average, y = retweet_average, label = label)) +
   geom_point() +
   geom_text_repel(point.padding = 0.5) +
   stat_smooth(method = "lm")
 ```
 
-Are there clear "types" in how people use twitter?
+Unsurprisingly, retweets and favorites are highly correlated.  Let's try to construct a single impact score that takes into account both retweets and favorites.  To see what the right "exchange rate" is between the two, let's use a simple linear regression.  We'll let the level of observation be a tweet, not a user, in this case.
+
+```{r}
+model <- 
+  tweets %>%
+  lm(retweet_count ~ favorite_count, data = .) 
+
+model %>%
+  stargazer(type = "text")
+
+coef <- summary(model)$coef[2,1]
+```
+
+This says that a favorite is equal to about `r round(coef, 2)` of a retweet.  Let's use this coefficient to create a single "impact index" for all the tweets and users.
+
+```{r}
+tweets$impact_index <- coef*tweets$favorite_count + tweets$retweet_count
+
+users <-
+  users %>%
+  mutate(
+    impact_index_average = favorite_average + retweet_average,
+    impact_index_total   = n_tweets * impact_index_average
+  )
+```
+
+Now that we have our index, let's see if which users have the most impact.  We'll graph impact as well as number of tweets. Each point is a user.  I've added labels to the most high-impact tweeters.
 
 ```{r}
 users %>%
-  mutate(
-    impact_index = favorite_average + 5*retweet_average,
-    label = if_else(impact_index >= 100 | n_tweets >= 8, screen_name, "")
-  ) %>%
-  ggplot(aes(x = impact_index, y = n_tweets, label = label)) +
+  mutate(label = if_else(impact_index_total >= 180, screen_name, "")) %>%
+  ggplot(aes(x = impact_index_total, y = n_tweets, label = label)) +
   geom_point() +
-  geom_text_repel(point.padding = 0.5) 
+  geom_text_repel() 
 ```
 
-
-What are the most popular single tweets, as measured by likes? As measured by retweets?
+Finally, let's look at the most imactful single tweets from this data set. Unsurprisingly, the highest-impact tweets are very pro-social in nature, eg announcing a new resource or giving general-interest advice.
 
 ```{r}
 # most liked tweets
 tweets %>%
-  arrange(desc(favorite_count)) %>%
-  select(screen_name, favorite_count, text) %>%
-  head(10) %>%
-  kable() %>%
-  kable_styling("hover", full_width = F)
-
-
-# most retweeted tweets
-tweets %>%
-  arrange(desc(retweet_count)) %>%
-  select(screen_name, retweet_count, text) %>%
-  head(10) %>%
+  arrange(desc(impact_index)) %>%
+  select(screen_name, impact_index, retweet_count, favorite_count, text) %>%
+  head(3) %>%
   kable() %>%
   kable_styling("hover", full_width = F)
 ```
