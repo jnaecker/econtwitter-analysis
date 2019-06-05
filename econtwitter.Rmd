@@ -18,9 +18,9 @@ library(stargazer)
 theme_set(theme_minimal())
 ```
 
-I decided to try out the `rtweet` package to access Twitter data easily, and also the `ggrepel` packages to spice up my graphics.  And what better use than a quick analysis of `#econtwitter` itself!
+I decided to try out the `rtweet` package to access Twitter data easily, and also the `ggrepel` package to spice up my graphics.  And what better use for these packages than a quick analysis of `#econtwitter` itself!
 
-To start, let's download tweets with the `#econtwitter` hashtag.  Let's get a sense of the volume of tweets, by looking at the number posted under this hashtag every day.
+To start, let's download tweets with the `#econtwitter` hashtag.  Let's get a sense of the volume of tweets by looking at the number posted under this hashtag every day.
 It looks like we can only get data going back about one week.
 
 ```{r data, cache=TRUE}
@@ -104,7 +104,7 @@ users %>%
   geom_text_repel() 
 ```
 
-Finally, let's look at the most imactful single tweets from this data set. Unsurprisingly, the highest-impact tweets are very pro-social in nature, eg announcing a new resource or giving general-interest advice.
+Finally, let's look at the most impactful single tweets from this data set. Unsurprisingly, the highest-impact tweets are very pro-social in nature, eg announcing a new resource or giving general-interest advice.
 
 ```{r}
 # most liked tweets
