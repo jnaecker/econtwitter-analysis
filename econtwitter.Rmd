@@ -116,5 +116,24 @@ tweets %>%
   kable_styling("hover", full_width = F)
 ```
 
+Let's look at users who list their pronouns.  First, how many folks actually list their pronouns in the description?
 
+```{r}
+library(stringr)
+users <- 
+  users %>%
+  mutate(list_pronouns = str_detect(description, "(he/him)|(she/her)|(they/them)")) 
+
+users %>% count(list_pronouns)
+```
+
+Not very many.  Who are they and what are their descriptions?
+
+```{r}
+users %>%
+  filter(list_pronouns) %>%
+  select(screen_name, description)  %>%
+  kable() %>%
+  kable_styling("hover", full_width = F)
+```
 
